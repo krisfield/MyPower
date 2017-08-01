@@ -1,6 +1,34 @@
 import os
 import sys
+
+import csv
 import sqlite3
+import urllib
+
+def connect():
+  #DOWNLOADING CSV FROM POWERTOCHOOSE.ORG AND SAVING FILE
+  url = 'http://www.powertochoose.org/en-us/Plan/ExportToCsv'
+  urllib.urlretrieve(url, 'mypower.csv')
+
+  #CONNECTING TO DB
+  con = sqlite3.connect('mypower.db')
+  con.text_factory = str
+  cur = con.cursor()
+
+  #CREATING DB TABLE IF IT DOESN'T EXIST
+  cur.execute("CREATE TABLE IF NOT EXISTS offers ('idKey', 'TduCompanyName', 'RepCompany', 'Product', 'kwh500', 'kwh1000', 'kwh2000', 'Fees/Credits', 'PrePaid', 'TimeOfUse', 'Fixed', 'RateType', 'Renewable', 'TermValue', 'CancelFee', 'Website', 'SpecialTerms', 'TermsURL', 'Promotion', 'PromotionDesc', 'FactsURL', 'EnrollURL', 'PrepaidURL', 'EnrollPhone', 'NewCustomer', 'MinUsageFeesCredits', 'avgPrice');")
+
+  #OPENING DOWNLOADED CSV TO SAVE IT INTO DB
+  with open('mypower.csv','rb') as fin:
+    dr = csv.DictReader(fin) # comma is default delimiter
+    to_db = [(i['[idKey]'], i['[TduCompanyName]'], i['[RepCompany]'], i['[Product]'], i['[kwh500]'], i['[kwh1000]'], i['[kwh2000]'], i['[Fees/Credits]'], i['[PrePaid]'], i['[TimeOfUse]'], i['[Fixed]'], i['[RateType]'], i['[Renewable]'], i['[TermValue]'], i['[CancelFee]'], i['[Website]'], i['[SpecialTerms]'], i['[TermsURL]'], i['[Promotion]'], i['[PromotionDesc]'], i['[FactsURL]'], i['[EnrollURL]'], i['[PrepaidURL]'], i['[EnrollPhone]'], i['[NewCustomer]'], i['[MinUsageFeesCredits]']) for i in dr]
+
+    #SAVING CSV INTO DB
+    cur.executemany("INSERT INTO offers ('idKey', 'TduCompanyName', 'RepCompany', 'Product', 'kwh500', 'kwh1000', 'kwh2000', 'Fees/Credits', 'PrePaid', 'TimeOfUse', 'Fixed', 'RateType', 'Renewable', 'TermValue', 'CancelFee', 'Website', 'SpecialTerms', 'TermsURL', 'Promotion', 'PromotionDesc', 'FactsURL', 'EnrollURL', 'PrepaidURL', 'EnrollPhone', 'NewCustomer', 'MinUsageFeesCredits') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);", to_db)
+
+  #COMMITING CHANGES AND CLOSING CONNECTION
+  con.commit()
+  con.close()
 
 def clear():
   os.system('cls' if os.name =='nt' else 'clear')
@@ -24,8 +52,11 @@ ___________________________________________________
 """)
 
 def avgprice(avgKWH):
-  c.execute('SELECT * FROM power_offers WHERE "[kwh500]" IS NOT NULL')
-  result = c.fetchall()
+  con = sqlite3.connect('mypower.db')
+  con.text_factory = str
+  cur = con.cursor()
+  cur.execute('SELECT * FROM offers WHERE "kwh500" IS NOT NULL')
+  result = cur.fetchall()
 
   for row in result:
     kwh2000 = float(row[6])
@@ -38,19 +69,20 @@ def avgprice(avgKWH):
 
     elif avgKWH >= 500:
       price = ((avgKWH-500) * kwh1000) + (500 * kwh500)
+      print price
 
     else:
       price = avgKWH * kwh500
 
-    c.execute('UPDATE power_offers SET avgprice={} WHERE "[idKey]"={}'.format(price, idkey))
-    conn.commit()
-
-#need to find way to only add this column once
-#c.execute('ALTER TABLE power_offers ADD COLUMN avgprice INTEGER')
-#conn.commit()
+#THIS IS NOT SETTING AVGPRICE ALTHOUGH PRICE IS BEING SET ABOVE
+    cur.execute('UPDATE offers SET "avgPrice"={} WHERE "idKey"={}'.format(price, idkey))
+    con.commit()
 
 def view_offers():
   """View offers."""
+  con = sqlite3.connect('mypower.db')
+  con.text_factory = str
+  cur = con.cursor()
   clear()
   print("Company           ||Price:   ||Term ||Renewable ||Rate Type")
   print("_"*50)
@@ -62,14 +94,12 @@ def view_offers():
   ##Show links to deals
   #clean up table format
   #Allow user to select the offer they want and the display all important info
-  for row in c.execute('SELECT * FROM power_offers ORDER BY avgprice ASC LIMIT 10'):
+  for row in cur.execute('SELECT * FROM offers ORDER BY avgPrice ASC LIMIT 10'):
     print("{}) {} || ${} || {} months || {}% || {} \n".format(i, row[2], row[26], row[13], row[12], row[11]))
     i += 1
 
-conn = sqlite3.connect('mypower.db')
-c = conn.cursor()
-
 if __name__ == '__main__':
+  connect()
   home_screen()
   avgprice(user_input())
   view_offers()
