@@ -5,6 +5,12 @@ import csv
 import sqlite3
 import urllib
 
+con = sqlite3.connect('mypower.db')
+con.text_factory = str
+cur = con.cursor()
+#DROPING TABLE OR ELSE IT JUST GROWS
+cur.execute("DROP TABLE offers")
+
 def connect():
   #DOWNLOADING CSV FROM POWERTOCHOOSE.ORG AND SAVING FILE
   url = 'http://www.powertochoose.org/en-us/Plan/ExportToCsv'
@@ -14,6 +20,7 @@ def connect():
   con = sqlite3.connect('mypower.db')
   con.text_factory = str
   cur = con.cursor()
+
 
   #CREATING DB TABLE IF IT DOESN'T EXIST
   cur.execute("CREATE TABLE IF NOT EXISTS offers ('idKey', 'TduCompanyName', 'RepCompany', 'Product', 'kwh500', 'kwh1000', 'kwh2000', 'Fees/Credits', 'PrePaid', 'TimeOfUse', 'Fixed', 'RateType', 'Renewable', 'TermValue', 'CancelFee', 'Website', 'SpecialTerms', 'TermsURL', 'Promotion', 'PromotionDesc', 'FactsURL', 'EnrollURL', 'PrepaidURL', 'EnrollPhone', 'NewCustomer', 'MinUsageFeesCredits', 'avgPrice');")
@@ -26,6 +33,8 @@ def connect():
     #SAVING CSV INTO DB
     cur.executemany("INSERT INTO offers ('idKey', 'TduCompanyName', 'RepCompany', 'Product', 'kwh500', 'kwh1000', 'kwh2000', 'Fees/Credits', 'PrePaid', 'TimeOfUse', 'Fixed', 'RateType', 'Renewable', 'TermValue', 'CancelFee', 'Website', 'SpecialTerms', 'TermsURL', 'Promotion', 'PromotionDesc', 'FactsURL', 'EnrollURL', 'PrepaidURL', 'EnrollPhone', 'NewCustomer', 'MinUsageFeesCredits') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);", to_db)
 
+    #DELETES LAST ROW
+    cur.execute('DELETE FROM offers WHERE "idKey"="END OF FILE";')
   #COMMITING CHANGES AND CLOSING CONNECTION
   con.commit()
   con.close()
@@ -36,6 +45,7 @@ def clear():
 def user_input():
   """Enter your avg kwh usage"""
   try:
+    ##Need to test to see if this error actully works
     usage = int(input("Enter you average energy consumption in Kwh: "))
   except ValueError:
     print("Avg energy consumption must be a number")
@@ -69,19 +79,17 @@ def avgprice(avgKWH):
 
     elif avgKWH >= 500:
       price = ((avgKWH-500) * kwh1000) + (500 * kwh500)
-      print price
 
     else:
       price = avgKWH * kwh500
 
-#THIS IS NOT SETTING AVGPRICE ALTHOUGH PRICE IS BEING SET ABOVE
-    cur.execute('UPDATE offers SET "avgPrice"={} WHERE "idKey"={}'.format(price, idkey))
+    cur.execute('UPDATE offers SET "avgPrice"=? WHERE "idKey"=?', (price, idkey))
     con.commit()
+  con.close()
 
 def view_offers():
   """View offers."""
   con = sqlite3.connect('mypower.db')
-  con.text_factory = str
   cur = con.cursor()
   clear()
   print("Company           ||Price:   ||Term ||Renewable ||Rate Type")
@@ -97,9 +105,11 @@ def view_offers():
   for row in cur.execute('SELECT * FROM offers ORDER BY avgPrice ASC LIMIT 10'):
     print("{}) {} || ${} || {} months || {}% || {} \n".format(i, row[2], row[26], row[13], row[12], row[11]))
     i += 1
+  con.close()
 
 if __name__ == '__main__':
   connect()
   home_screen()
   avgprice(user_input())
   view_offers()
+
