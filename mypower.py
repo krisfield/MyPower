@@ -4,6 +4,7 @@ import sys
 import csv
 import datetime
 import sqlite3
+from terminaltables import AsciiTable
 import urllib.request
 
 con = sqlite3.connect('mypower.db')
@@ -151,13 +152,16 @@ def view_offers(USER):
   clear()
   con = sqlite3.connect('mypower.db')
   cur = con.cursor()
-  print("Company           ||Price:   ||Term ||Renewable ||Rate Type")
-  print("_"*50)
-  i = 1
+
+  data = []
+  data.append(['id', 'Company', 'Price ($)', 'Term (months)', 'Renewable (%)', 'Rate Type'])
 
   for row in cur.execute('SELECT * FROM offers WHERE TduCompanyName=? AND TermValue >=? AND Renewable >=? ORDER BY avgPrice ASC LIMIT 10', (USER["tdu"], USER["contract term"], USER["renewable"])):
-    print("{}) {} || ${} || {} months || {}% || {} \n".format(i, row[2], row[26], row[13], row[12], row[11]))
-    i += 1
+    data.append([row[0], row[2], row[26], row[13], row[12], row[11] ])
+
+  table = AsciiTable(data, title="Best offers")
+  print (table.table)
+  print ("Above are the best deals based on your average {}Kwh usage\n\n".format(USER["usage"]))
   con.close()
 
 if __name__ == '__main__':
