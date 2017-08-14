@@ -15,6 +15,7 @@ def clear():
   os.system('cls' if os.name == 'nt' else 'clear')
 
 def dbBuild():
+  print("Updating database...")
   #DOWNLOADING CSV FROM POWERTOCHOOSE.ORG AND SAVING FILE
   url = 'http://www.powertochoose.org/en-us/Plan/ExportToCsv'
   urllib.request.urlretrieve(url, 'mypower.csv')
@@ -45,11 +46,12 @@ def dbBuild():
 
 def dbCheck():
   """Shows last time data was downloaded from Power To Choose and gives option to update"""
-  csv_last_download = datetime.datetime.fromtimestamp(os.stat('mypower.csv').st_mtime)
-  print ("This database was last updated from Power to Choose at {}\n\n".format(csv_last_download))
-
-  if input("Would you like to update this database? [y/N]: ").lower() == 'y':
-    print("Updating database...")
+  if os.path.isfile('mypower.csv'):
+    csv_last_download = datetime.datetime.fromtimestamp(os.stat('mypower.csv').st_mtime)
+    print ("This database was last updated from Power to Choose at {}\n\n".format(csv_last_download))
+    if input("Would you like to update this database? [y/N]: ").lower() == 'y':
+      dbBuild()
+  else:
     dbBuild()
 
 def user_input(TDU):
@@ -131,6 +133,7 @@ def avgprice(USER):
   con.close()
 
 def build_tdu():
+  clear()
   con = sqlite3.connect('mypower.db')
   cur = con.cursor()
   cur.execute('SELECT DISTINCT "TduCompanyName" FROM offers')
@@ -154,15 +157,50 @@ def view_offers(USER):
   cur = con.cursor()
 
   data = []
+  offer_ids = []
   data.append(['id', 'Company', 'Price ($)', 'Term (months)', 'Renewable (%)', 'Rate Type'])
 
   for row in cur.execute('SELECT * FROM offers WHERE TduCompanyName=? AND TermValue >=? AND Renewable >=? ORDER BY avgPrice ASC LIMIT 10', (USER["tdu"], USER["contract term"], USER["renewable"])):
     data.append([row[0], row[2], row[26], row[13], row[12], row[11] ])
+    offer_ids.append(row[0])
 
   table = AsciiTable(data, title="Best offers")
   print (table.table)
   print ("Above are the best deals based on your average {}Kwh usage\n\n".format(USER["usage"]))
+  return offer_ids
   con.close()
+
+def offer_details(OFFER_IDS):
+  con = sqlite3.connect('mypower.db')
+  cur = con.cursor()
+
+  while True:
+    try:
+      selected_offer = int(input("Enter the offer id to view more details: ").lower())
+    except ValueError:
+      print("Oops! That was not a valid number. Try again...")
+    else:
+      if selected_offer in OFFER_IDS:
+        t = (selected_offer, )
+        cur.execute('SELECT * FROM offers WHERE idKey = ?', t)
+        offer = cur.fetchone()
+        break
+      else:
+        print("Offer ID {} is not a valid selection".format(selected_offer))
+
+  clear()
+  print ("""
+  OFFER DETAILS
+  _________________________
+  Plan name: {}  (ID #: {})
+  Company: {}
+  Average monthly price*: ${} (500Kwh: ${}   1000Kwh: ${}   2000Kwh: ${})
+  Fees/Credits: {}
+  Contract length: {} months
+  Details: {}
+  Enroll: {}
+  (Cmd + double-click to open urls)
+         """.format(offer[3], offer[0], offer[2], offer[26], offer[4], offer[5], offer[6], offer[7], offer[13], offer[20], offer[21]))
 
 if __name__ == '__main__':
   menu()
@@ -170,5 +208,6 @@ if __name__ == '__main__':
   tdu_choices = build_tdu()
   preferences = user_input(tdu_choices)
   avgprice(preferences)
-  view_offers(preferences)
+  offer_ids = view_offers(preferences)
+  offer_details(offer_ids)
 
