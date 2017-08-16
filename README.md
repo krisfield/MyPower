@@ -19,7 +19,10 @@ There are multiple prompts for user input to help narrow down the final results
 4. Minimum contract length desired in months (default is 0).
 
 ## Results
-MyPower will output a table of the top ten electrical plans based on your inputs. Further details of each offer can be viewed by entering in the corresponding id#. 
+MyPower will output a table of the top ten electrical plans based on your inputs. Further details of each offer can be viewed by entering in the corresponding id#.
+
+### Results table
+![MyPower Results](https://github.com/krisfield/MyPower/blob/master/images/results_table.png?raw=true)
 
 ## Requirements
 1. Python3
