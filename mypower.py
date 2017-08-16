@@ -3,13 +3,9 @@ import sys
 
 import csv
 import datetime
-import sqlite3
+from databasemanager import DatabaseManager
 from terminaltables import AsciiTable
 import urllib.request
-
-con = sqlite3.connect('mypower.db')
-con.text_factory = str
-cur = con.cursor()
 
 def clear():
   os.system('cls' if os.name == 'nt' else 'clear')
@@ -21,14 +17,11 @@ def dbBuild():
   urllib.request.urlretrieve(url, 'mypower.csv')
 
   #CONNECTING TO DB
-  con = sqlite3.connect('mypower.db')
-  #con.text_factory = str
-  cur = con.cursor()
-  #DROPING TABLE OR ELSE IT JUST GROWS
-  cur.execute("DROP TABLE IF EXISTS offers")
+  dbmgr = DatabaseManager("mypower.db")
+  dbmgr.query("DROP TABLE IF EXISTS offers")
 
   #CREATING DB TABLE IF IT DOESN'T EXIST
-  cur.execute("CREATE TABLE IF NOT EXISTS offers ('idKey' INTEGER, 'TduCompanyName', 'RepCompany', 'Product', 'kwh500' INTEGER, 'kwh1000' INTEGER, 'kwh2000' INTEGER, 'Fees/Credits', 'PrePaid', 'TimeOfUse', 'Fixed', 'RateType', 'Renewable' INTEGER, 'TermValue' INTEGER, 'CancelFee', 'Website', 'SpecialTerms', 'TermsURL', 'Promotion', 'PromotionDesc', 'FactsURL', 'EnrollURL', 'PrepaidURL', 'EnrollPhone', 'NewCustomer', 'MinUsageFeesCredits', 'avgPrice');")
+  dbmgr.query("CREATE TABLE IF NOT EXISTS offers ('idKey' INTEGER, 'TduCompanyName', 'RepCompany', 'Product', 'kwh500' INTEGER, 'kwh1000' INTEGER, 'kwh2000' INTEGER, 'FeesCredits', 'PrePaid', 'TimeOfUse', 'Fixed', 'RateType', 'Renewable' INTEGER, 'TermValue' INTEGER, 'CancelFee', 'Website', 'SpecialTerms', 'TermsURL', 'Promotion', 'PromotionDesc', 'FactsURL', 'EnrollURL', 'PrepaidURL', 'EnrollPhone', 'NewCustomer', 'MinUsageFeesCredits');")
 
   #OPENING DOWNLOADED CSV TO SAVE IT INTO DB
   with open('mypower.csv','rt') as fin:
@@ -36,13 +29,12 @@ def dbBuild():
     to_db = [(i['[idKey]'], i['[TduCompanyName]'], i['[RepCompany]'], i['[Product]'], i['[kwh500]'], i['[kwh1000]'], i['[kwh2000]'], i['[Fees/Credits]'], i['[PrePaid]'], i['[TimeOfUse]'], i['[Fixed]'], i['[RateType]'], i['[Renewable]'], i['[TermValue]'], i['[CancelFee]'], i['[Website]'], i['[SpecialTerms]'], i['[TermsURL]'], i['[Promotion]'], i['[PromotionDesc]'], i['[FactsURL]'], i['[EnrollURL]'], i['[PrepaidURL]'], i['[EnrollPhone]'], i['[NewCustomer]'], i['[MinUsageFeesCredits]']) for i in dr]
 
     #SAVING CSV INTO DB
-    cur.executemany("INSERT INTO offers ('idKey', 'TduCompanyName', 'RepCompany', 'Product', 'kwh500', 'kwh1000', 'kwh2000', 'Fees/Credits', 'PrePaid', 'TimeOfUse', 'Fixed', 'RateType', 'Renewable', 'TermValue', 'CancelFee', 'Website', 'SpecialTerms', 'TermsURL', 'Promotion', 'PromotionDesc', 'FactsURL', 'EnrollURL', 'PrepaidURL', 'EnrollPhone', 'NewCustomer', 'MinUsageFeesCredits') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);", to_db)
+    dbmgr.querymany("INSERT INTO offers ('idKey', 'TduCompanyName', 'RepCompany', 'Product', 'kwh500', 'kwh1000', 'kwh2000', 'FeesCredits', 'PrePaid', 'TimeOfUse', 'Fixed', 'RateType', 'Renewable', 'TermValue', 'CancelFee', 'Website', 'SpecialTerms', 'TermsURL', 'Promotion', 'PromotionDesc', 'FactsURL', 'EnrollURL', 'PrepaidURL', 'EnrollPhone', 'NewCustomer', 'MinUsageFeesCredits') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);", to_db)
 
     #DELETES LAST ROW
-    cur.execute('DELETE FROM offers WHERE "idKey"="END OF FILE";')
+    dbmgr.query('DELETE FROM offers WHERE "idKey"="END OF FILE";')
   #COMMITING CHANGES AND CLOSING CONNECTION
-  con.commit()
-  con.close()
+  del(dbmgr)
 
 def dbCheck():
   """Shows last time data was downloaded from Power To Choose and gives option to update"""
@@ -64,8 +56,10 @@ def user_input(TDU):
     except ValueError:
       print("Oops! That was not a valid number. Try again...")
     else:
-      user_pref["tdu"] = TDU[tdu_num]["tdu_name"]
-      break
+      if tdu_num in TDU:
+        user_pref["tdu"] = TDU[tdu_num]["tdu_name"]
+        break
+      print("Oops! That was not a valid TDU number. Try again...")
 
   while True:
     try:
@@ -80,7 +74,7 @@ def user_input(TDU):
     try:
       renewable = input("Do you want fully Renewable energy? [y/N]: ").lower()
     except ValueError:
-      print("Oops! That was not a valid number. Try again...")
+      print("Oops! That was not a valid entry. Try again...")
     else:
       if renewable != 'y':
         user_pref["renewable"] = 0
@@ -90,7 +84,7 @@ def user_input(TDU):
 
   while True:
     try:
-      contract = int(input("Desired minimum contract lenght (months) [0]?: ") or "0")
+      contract = int(input("Desired minimum contract length (months) [0]?: ") or "0")
     except ValueError:
       print("Oops! That was not a valid number. Try again...")
     else:
@@ -99,7 +93,6 @@ def user_input(TDU):
 
   return user_pref
 
-
 def menu():
   clear()
   print("""
@@ -107,16 +100,16 @@ Welcome to MyPowerToChoose a script which makes finding the best deal on power e
 """)
 
 def avgprice(USER):
-  con = sqlite3.connect('mypower.db')
-  con.text_factory = str
-  cur = con.cursor()
-  cur.execute('SELECT * FROM offers WHERE "kwh500" IS NOT NULL')
-  result = cur.fetchall()
+  dbmgr = DatabaseManager("mypower.db")
+  dbmgr.query('SELECT * FROM offers WHERE "kwh500" IS NOT NULL')
+  result = dbmgr.fetchall()
 
+  dbmgr.query("DROP TABLE IF EXISTS user")
+  dbmgr.query('CREATE TABLE user (idKey INTEGER, avgPrice INTEGER)')
   for row in result:
-    kwh2000 = float(row[6])
-    kwh1000 = float(row[5])
-    kwh500 = float(row[4])
+    kwh2000 = row[6]
+    kwh1000 = row[5]
+    kwh500 = row[4]
     idkey = row[0]
 
     if USER["usage"] >= 1000:
@@ -128,16 +121,16 @@ def avgprice(USER):
     else:
       price = USER["usage"] * kwh500
 
-    cur.execute('UPDATE offers SET "avgPrice"=? WHERE "idKey"=?', (price, idkey))
-    con.commit()
-  con.close()
+    t = (idkey, price)
+    dbmgr.query('INSERT INTO user VALUES (?, ?)', t)
+
+  del(dbmgr)
 
 def build_tdu():
   clear()
-  con = sqlite3.connect('mypower.db')
-  cur = con.cursor()
-  cur.execute('SELECT DISTINCT "TduCompanyName" FROM offers')
-  result = cur.fetchall()
+  dbmgr = DatabaseManager("mypower.db")
+  dbmgr.query('SELECT DISTINCT "TduCompanyName" FROM offers')
+  result = dbmgr.fetchall()
   i = 0
   tdu = {}
   print("Choose your TDU provider:")
@@ -148,31 +141,28 @@ def build_tdu():
     i += 1
   print("\n\n")
   return tdu
-  con.close()
 
 def view_offers(USER):
   """View offers."""
   clear()
-  con = sqlite3.connect('mypower.db')
-  cur = con.cursor()
+  dbmgr = DatabaseManager("mypower.db")
 
   data = []
   offer_ids = []
   data.append(['id', 'Company', 'Price ($)', 'Term (months)', 'Renewable (%)', 'Rate Type'])
 
-  for row in cur.execute('SELECT * FROM offers WHERE TduCompanyName=? AND TermValue >=? AND Renewable >=? ORDER BY avgPrice ASC LIMIT 10', (USER["tdu"], USER["contract term"], USER["renewable"])):
-    data.append([row[0], row[2], row[26], row[13], row[12], row[11] ])
+  for row in dbmgr.query('SELECT offers.idKey, offers.RepCompany, user.avgPrice, offers.TermValue, offers.Renewable, offers.RateType FROM offers INNER JOIN user ON offers.idKey = user.idKey WHERE offers.TduCompanyName=? AND offers.TermValue >=? AND offers.Renewable >=? ORDER BY user.avgPrice ASC LIMIT 10', (USER["tdu"], USER["contract term"], USER["renewable"])):
+    data.append([row[0], row[1], row[2], row[3], row[4], row[5] ])
     offer_ids.append(row[0])
 
   table = AsciiTable(data, title="Best offers")
   print (table.table)
   print ("Above are the best deals based on your average {}Kwh usage\n\n".format(USER["usage"]))
   return offer_ids
-  con.close()
+  del(dbmgr)
 
 def offer_details(OFFER_IDS):
-  con = sqlite3.connect('mypower.db')
-  cur = con.cursor()
+  dbmgr = DatabaseManager("mypower.db")
 
   while True:
     try:
@@ -182,8 +172,8 @@ def offer_details(OFFER_IDS):
     else:
       if selected_offer in OFFER_IDS:
         t = (selected_offer, )
-        cur.execute('SELECT * FROM offers WHERE idKey = ?', t)
-        offer = cur.fetchone()
+        dbmgr.query('SELECT offers.Product, offers.idKey, offers.RepCompany, user.avgPrice, offers.kwh500, offers.kwh1000, offers.kwh2000, offers.FeesCredits, offers.TermValue, offers.FactsURL, offers.EnrollURL FROM offers INNER JOIN user ON offers.idKey = user.idKey WHERE offers.idKey = ?', t)
+        offer = dbmgr.fetchone()
         break
       else:
         print("Offer ID {} is not a valid selection".format(selected_offer))
@@ -200,7 +190,7 @@ def offer_details(OFFER_IDS):
   Details: {}
   Enroll: {}
   (Cmd + double-click to open urls)
-         """.format(offer[3], offer[0], offer[2], offer[26], offer[4], offer[5], offer[6], offer[7], offer[13], offer[20], offer[21]))
+         """.format(offer[0], offer[1], offer[2], offer[3], offer[4], offer[5], offer[6], offer[7], offer[8], offer[9], offer[10]))
 
 if __name__ == '__main__':
   menu()
