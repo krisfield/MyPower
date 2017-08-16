@@ -1,12 +1,11 @@
 # MyPower
-A python script which helps determine the best power offers available through [powertochoose.org](powertochoose.org), a Public Utility Commission of Texas website. While [powertochoose.org](powertochoose.org) has lots of valid/useful information for consumers to sort though, the search format leads to many companies offering "teaser" type rates which make it more difficult for consumers to understand what their utility bills will truely be.
-
-This script attempts to clean up results by outputting the top offers based on the consumer's average Kwh consumption. Additional questions will be added to allow to sort by renewable energy plans and length of term.
+MyPower makes it easy for Texas residents to input their average monthly electricity consumption (Kwh) and view the lowest priced plans available to them. Data for MyPower is pulled from [powertochoose.org](powertochoose.org), a Public Utility Commission of Texas website. Results are output in estimated monthly cost to make comparing plans as easy as possible.
 
 ## Instructions
-Download this repository, navigate into MyPower with your terminal.
+Download this repository, navigate to MyPower with your terminal.
 
 Run MyPower with:
+
 `python3 mypower.py`
 
 ### Database updated
@@ -20,4 +19,8 @@ There are multiple prompts for user input to help narrow down the final results
 4. Minimum contract length desired in months (default is 0).
 
 ## Results
-MyPower will output a table of the top ten electrical plans based on your inputs. It will soon allow for the user to select one of the plans to display additional details.
+MyPower will output a table of the top ten electrical plans based on your inputs. Further details of each offer can be viewed by entering in the corresponding id#. 
+
+## Requirements
+1. Python3
+2. Terminaltables
