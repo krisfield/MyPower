@@ -24,6 +24,11 @@ MyPower will output a table of the top ten electrical plans based on your inputs
 ### Results table
 ![MyPower Results](https://github.com/krisfield/MyPower/blob/master/images/results_table.png?raw=true)
 
+### Viewing offer
+Entering one of the offer ids from the results table will display its corresponding details as follows:
+
+![MyPower Results](https://github.com/krisfield/MyPower/blob/master/images/offer_details.png?raw=true)
+
 ## Requirements
 1. Python3
 2. Terminaltables
