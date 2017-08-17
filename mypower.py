@@ -4,7 +4,8 @@ import sys
 import csv
 import datetime
 from databasemanager import DatabaseManager
-from terminaltables import AsciiTable
+from terminaltables import SingleTable
+import textwrap
 import urllib.request
 
 def clear():
@@ -38,6 +39,7 @@ def dbBuild():
 
 def dbCheck():
   """Shows last time data was downloaded from Power To Choose and gives option to update"""
+  clear()
   if os.path.isfile('mypower.csv'):
     csv_last_download = datetime.datetime.fromtimestamp(os.stat('mypower.csv').st_mtime)
     print ("This database was last updated from Power to Choose at {}\n\n".format(csv_last_download))
@@ -95,9 +97,13 @@ def user_input(TDU):
 
 def menu():
   clear()
-  print("""
-Welcome to MyPowerToChoose a script which makes finding the best deal on power easier than every. This program will weed out the misleading utility ads commonly seen on powertochoose.org.
-""")
+  print("##################################")
+  print("MyPower 1.0")
+  print("################################## \n")
+  print ("\n".join(textwrap.wrap("""Welcome to MyPower, a program which allows you to easily find the best deal when it comes to electricity. Simply input your average monthly power usage and then compare availbe offers by their estimated average monthly cost.
+""", 50)))
+
+  input("\n\nPress enter to continue: ")
 
 def avgprice(USER):
   dbmgr = DatabaseManager("mypower.db")
@@ -113,13 +119,13 @@ def avgprice(USER):
     idkey = row[0]
 
     if USER["usage"] >= 1000:
-      price = ((USER["usage"]-1000) * kwh2000) + (500 * kwh1000) + (500 * kwh500)
+      price = round(((USER["usage"]-1000) * kwh2000) + (500 * kwh1000) + (500 * kwh500), 0)
 
     elif USER["usage"] >= 500:
-      price = ((USER["usage"]-500) * kwh1000) + (500 * kwh500)
+      price = round(((USER["usage"]-500) * kwh1000) + (500 * kwh500), 0)
 
     else:
-      price = USER["usage"] * kwh500
+      price = round(USER["usage"] * kwh500, 0)
 
     t = (idkey, price)
     dbmgr.query('INSERT INTO user VALUES (?, ?)', t)
@@ -151,11 +157,11 @@ def view_offers(USER):
   offer_ids = []
   data.append(['id', 'Company', 'Price ($)', 'Term (months)', 'Renewable (%)', 'Rate Type'])
 
-  for row in dbmgr.query('SELECT offers.idKey, offers.RepCompany, user.avgPrice, offers.TermValue, offers.Renewable, offers.RateType FROM offers INNER JOIN user ON offers.idKey = user.idKey WHERE offers.TduCompanyName=? AND offers.TermValue >=? AND offers.Renewable >=? ORDER BY user.avgPrice ASC LIMIT 10', (USER["tdu"], USER["contract term"], USER["renewable"])):
+  for row in dbmgr.query('SELECT offers.idKey, offers.RepCompany, user.avgPrice, offers.TermValue, offers.Renewable, offers.RateType FROM offers INNER JOIN user ON offers.idKey = user.idKey WHERE offers.TduCompanyName=? AND offers.TermValue >=? AND offers.Renewable >=? AND offers.MinUsageFeesCredits = ? ORDER BY user.avgPrice ASC LIMIT 10', (USER["tdu"], USER["contract term"], USER["renewable"], 'FALSE') ):
     data.append([row[0], row[1], row[2], row[3], row[4], row[5] ])
     offer_ids.append(row[0])
 
-  table = AsciiTable(data, title="Best offers")
+  table = SingleTable(data, title="Best offers")
   print (table.table)
   print ("Above are the best deals based on your average {}Kwh usage\n\n".format(USER["usage"]))
   return offer_ids
@@ -163,6 +169,7 @@ def view_offers(USER):
 
 def offer_details(OFFER_IDS):
   dbmgr = DatabaseManager("mypower.db")
+  data = []
 
   while True:
     try:
@@ -179,25 +186,34 @@ def offer_details(OFFER_IDS):
         print("Offer ID {} is not a valid selection".format(selected_offer))
 
   clear()
-  print ("""
-  OFFER DETAILS
-  _________________________
-  Plan name: {}  (ID #: {})
-  Company: {}
-  Average monthly price*: ${} (500Kwh: ${}   1000Kwh: ${}   2000Kwh: ${})
-  Fees/Credits: {}
-  Contract length: {} months
-  Details: {}
-  Enroll: {}
-  (Cmd + double-click to open urls)
-         """.format(offer[0], offer[1], offer[2], offer[3], offer[4], offer[5], offer[6], offer[7], offer[8], offer[9], offer[10]))
+  data.append(['Plan #{}'.format(offer[1]), '{}'.format(offer[0]) ])
+  data.append(['Company', offer[2] ])
+  data.append(['Estimated Monthly Bill', '${}'.format(offer[3])])
+  data.append(['Price breakdown', '[500Kwh: ${}]  [1000Kwh: ${}]  [2000Kwh: ${}]'.format(offer[4], offer[5], offer[6])])
+  data.append(['Contract Length', '{} months'.format(offer[8]) ])
+  table = SingleTable(data, title="Plan details")
+  table.justify_columns[1] = 'left'
+  print (table.table)
+  print('Details: {}'.format(offer[9]))
+  print('Enroll: {}'.format(offer[10]))
+  print ('\n(Cmd + double-click to open urls)\n\n')
+
+  choice = input("Press any key to return to your offers or 'q' to quit: ").lower()
+  clear()
+
+  if choice == 'q':
+    return False
+  else:
+    return True
 
 if __name__ == '__main__':
+  active = True
   menu()
   dbCheck()
   tdu_choices = build_tdu()
   preferences = user_input(tdu_choices)
   avgprice(preferences)
-  offer_ids = view_offers(preferences)
-  offer_details(offer_ids)
+  while active == True:
+    offer_ids = view_offers(preferences)
+    active = offer_details(offer_ids)
 
